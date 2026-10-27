@@ -5,6 +5,56 @@
 
 ---
 
+## Быстрый запуск через Docker (рекомендуется)
+
+Скопируйте и вставьте команды в терминал:
+
+```bash
+git clone https://github.com/eldar-kip/SORTLAB.git
+cd SORTLAB
+docker compose up -d
+```
+
+После запуска откройте в браузере: **http://localhost:5173**
+
+Дополнительные команды Docker:
+```bash
+# Просмотр логов запуска
+docker compose logs -f
+
+# Запуск автоматических тестов (71 тест)
+docker compose exec sortlab npm test
+
+# Остановка контейнера
+docker compose down
+```
+
+---
+
+## Локальный запуск (при установленном Node.js 20+)
+
+Скопируйте и вставьте команды в терминал:
+
+```bash
+git clone https://github.com/eldar-kip/SORTLAB.git
+cd SORTLAB
+npm install
+npm run dev
+```
+
+После запуска откройте в браузере: **http://localhost:5173**
+
+Дополнительные команды:
+```bash
+# Запуск модульных тестов
+npm test
+
+# Сборка проекта
+npm run build
+```
+
+---
+
 ## Технологический стек
 
 - **React 18 + TypeScript** — компонентная архитектура и строгая типизация
@@ -15,44 +65,6 @@
 - **React Router v6** — маршрутизация по 9 разделам приложения
 - **Vitest** — модульное тестирование всех 8 алгоритмов и валидации данных
 - **Docker & Docker Compose** — локальный запуск в контейнере (`node:20-alpine`)
-
----
-
-## Быстрый запуск через Docker
-
-### 1. Запуск локального контейнера (порт `5173`)
-```bash
-docker compose up -d
-```
-После запуска откройте в браузере: **http://localhost:5173**
-
-### 2. Запуск автоматических тестов внутри контейнера
-```bash
-docker compose exec sortlab npm test
-```
-
-### 3. Остановка контейнера
-```bash
-docker compose down
-```
-
----
-
-## Локальный запуск (при установленном Node.js 20+)
-
-```bash
-# Установка зависимостей
-npm install
-
-# Запуск dev-сервера
-npm run dev
-
-# Запуск тестов
-npm test
-
-# Сборка проекта
-npm run build
-```
 
 ---
 
