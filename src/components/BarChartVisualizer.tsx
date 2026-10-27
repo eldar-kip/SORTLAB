@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AlgorithmId } from '../types/algorithm';
 import { PlaybackStatus, SortingStep } from '../types/visualization';
-import { GitBranch, Layers, Hash, Eye } from 'lucide-react';
+import { formatComputeTime, formatElapsedTime } from '../utils/complexity';
+import { GitBranch, Layers, Hash, Eye, Crosshair, Timer, Clock } from 'lucide-react';
 
 interface BarChartVisualizerProps {
   step: SortingStep;
   algorithmId: AlgorithmId;
   status: PlaybackStatus;
+  computeTimeMs?: number;
+  animationElapsedMs?: number;
   compact?: boolean;
   heightClass?: string;
 }
@@ -15,6 +18,8 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
   step,
   algorithmId,
   status,
+  computeTimeMs = 0,
+  animationElapsedMs = 0,
   compact = false,
   heightClass = 'h-[340px] sm:h-[390px]',
 }) => {
@@ -39,11 +44,17 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
     recursionDepth,
   } = step;
 
+  // Используем Set для O(1) проверки состояний без просадок FPS в промежуточных шагах
+  const comparingSet = useMemo(() => new Set(comparingIndices), [comparingIndices]);
+  const swappingSet = useMemo(() => new Set(swappingIndices), [swappingIndices]);
+  const sortedSet = useMemo(() => new Set(sortedIndices), [sortedIndices]);
+  const shellGroupSet = useMemo(() => new Set(shellGroupIndices), [shellGroupIndices]);
+
   const n = array.length;
   const minVal = n > 0 ? Math.min(...array) : 0;
   const maxVal = n > 0 ? Math.max(...array) : 100;
 
-  // Вычисляем пропорциональную высоту каждого столбца (от 10% до 94%) с поддержкой отрицательных чисел
+  // Вычисляем пропорциональную высоту каждого столбца (от 12% до 94%) с поддержкой отрицательных чисел
   const getBarHeightPercent = (val: number): number => {
     if (maxVal === minVal) return 65;
     const normalized = (val - minVal) / (maxVal - minVal);
@@ -53,21 +64,21 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
   // Определение цвета и текстовой метки состояния для элемента с индексом idx
   const getBarStyle = (idx: number) => {
     const isCompleted = status === 'completed' || step.type === 'complete';
-    const isSwapping = swappingIndices.includes(idx);
-    const isComparing = comparingIndices.includes(idx);
+    const isSwapping = swappingSet.has(idx);
+    const isComparing = comparingSet.has(idx);
     const isPivot = pivotIndex === idx;
     const isMinMax = minMaxIndex === idx;
     const isCurrent = currentIndex === idx;
-    const isSorted = sortedIndices.includes(idx);
+    const isSorted = sortedSet.has(idx);
     const isInMerge =
       mergeRange !== null && idx >= mergeRange[0] && idx <= mergeRange[2];
-    const isInShellGroup = shellGroupIndices.includes(idx);
+    const isInShellGroup = shellGroupSet.has(idx);
 
     if (isCompleted) {
       return {
         bg: 'bg-gradient-to-t from-[#16A34A] to-[#22C55E]',
         border: 'border-[#4ADE80]/60',
-        glow: 'shadow-[0_0_12px_rgba(34,197,94,0.35)]',
+        glow: 'shadow-[0_0_10px_rgba(34,197,94,0.3)]',
         badge: '✓',
         stateLabel: 'Отсортирован',
       };
@@ -77,7 +88,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
       return {
         bg: 'bg-gradient-to-t from-[#0891B2] to-[#06B6D4]',
         border: 'border-[#67E8F9]',
-        glow: 'shadow-[0_0_14px_rgba(6,182,212,0.55)]',
+        glow: 'shadow-[0_0_12px_rgba(6,182,212,0.5)]',
         badge: '⇄',
         stateLabel: 'Обмен / Запись',
       };
@@ -87,7 +98,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
       return {
         bg: 'bg-gradient-to-t from-[#EA580C] to-[#F97316]',
         border: 'border-[#FDBA74]',
-        glow: 'shadow-[0_0_14px_rgba(249,115,22,0.55)]',
+        glow: 'shadow-[0_0_12px_rgba(249,115,22,0.5)]',
         badge: 'P',
         stateLabel: 'Опорный (Pivot)',
       };
@@ -97,7 +108,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
       return {
         bg: 'bg-gradient-to-t from-[#D97706] to-[#F59E0B]',
         border: 'border-[#FDE68A]',
-        glow: 'shadow-[0_0_14px_rgba(245,158,11,0.55)]',
+        glow: 'shadow-[0_0_12px_rgba(245,158,11,0.5)]',
         badge: '?',
         stateLabel: 'Сравнение',
       };
@@ -107,7 +118,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
       return {
         bg: 'bg-gradient-to-t from-[#DB2777] to-[#EC4899]',
         border: 'border-[#F9A8D4]',
-        glow: 'shadow-[0_0_14px_rgba(236,72,153,0.5)]',
+        glow: 'shadow-[0_0_12px_rgba(236,72,153,0.45)]',
         badge: '★',
         stateLabel: 'Экстремум / Корень',
       };
@@ -117,7 +128,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
       return {
         bg: 'bg-gradient-to-t from-[#0284C7] to-[#06B6D4]',
         border: 'border-[#7DD3FC]',
-        glow: 'shadow-[0_0_12px_rgba(6,182,212,0.45)]',
+        glow: 'shadow-[0_0_10px_rgba(6,182,212,0.4)]',
         badge: '•',
         stateLabel: 'Текущий элемент',
       };
@@ -165,14 +176,123 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
     };
   };
 
+  // Информация для постоянной полоски выбранного / активного элемента алгоритма
+  const activeElementBanner = useMemo(() => {
+    const isCompleted = status === 'completed' || step.type === 'complete';
+
+    if (swappingIndices.length >= 2) {
+      const [i, j] = swappingIndices;
+      return {
+        badgeColor: 'text-[#06B6D4] border-[#06B6D4]/40 bg-[#06B6D4]/10',
+        label: 'Перестановка / Обмен:',
+        valueText: `[${i}] = ${array[i]}  ⇄  [${j}] = ${array[j]}`,
+        extra: pivotIndex !== null ? `Опорный (Pivot): [${pivotIndex}] = ${array[pivotIndex]}` : null,
+      };
+    }
+
+    if (swappingIndices.length === 1) {
+      const idx = swappingIndices[0];
+      return {
+        badgeColor: 'text-[#06B6D4] border-[#06B6D4]/40 bg-[#06B6D4]/10',
+        label: 'Запись / Сдвиг элемента:',
+        valueText: `[${idx}] ← ${array[idx]}`,
+        extra: currentIndex !== null && currentIndex !== idx ? `Текущий: [${currentIndex}] = ${array[currentIndex]}` : null,
+      };
+    }
+
+    if (comparingIndices.length >= 2) {
+      const [i, j] = comparingIndices;
+      return {
+        badgeColor: 'text-[#F59E0B] border-[#F59E0B]/40 bg-[#F59E0B]/10',
+        label: 'Выбраны для сравнения:',
+        valueText: `[${i}] = ${array[i]}  ?  [${j}] = ${array[j]}`,
+        extra:
+          pivotIndex !== null
+            ? `Опорный (Pivot): [${pivotIndex}] = ${array[pivotIndex]}`
+            : minMaxIndex !== null
+            ? `Экстремум: [${minMaxIndex}] = ${array[minMaxIndex]}`
+            : null,
+      };
+    }
+
+    if (pivotIndex !== null && array[pivotIndex] !== undefined) {
+      return {
+        badgeColor: 'text-[#F97316] border-[#F97316]/40 bg-[#F97316]/10',
+        label: 'Выбран опорный элемент (Pivot):',
+        valueText: `[${pivotIndex}] = ${array[pivotIndex]}`,
+        extra:
+          partitionRange !== null
+            ? `Разбиение участка [${partitionRange[0]}..${partitionRange[1]}]`
+            : null,
+      };
+    }
+
+    if (minMaxIndex !== null && array[minMaxIndex] !== undefined) {
+      return {
+        badgeColor: 'text-[#EC4899] border-[#EC4899]/40 bg-[#EC4899]/10',
+        label: 'Выбран текущий экстремум:',
+        valueText: `[${minMaxIndex}] = ${array[minMaxIndex]}`,
+        extra: null,
+      };
+    }
+
+    if (currentIndex !== null && array[currentIndex] !== undefined) {
+      return {
+        badgeColor: 'text-[#06B6D4] border-[#06B6D4]/40 bg-[#06B6D4]/10',
+        label: 'Выбран активный элемент:',
+        valueText: `[${currentIndex}] = ${array[currentIndex]}`,
+        extra: null,
+      };
+    }
+
+    if (isCompleted) {
+      return {
+        badgeColor: 'text-[#22C55E] border-[#22C55E]/40 bg-[#22C55E]/10',
+        label: 'Статус массива:',
+        valueText: `Отсортирован (${n} эл., от ${minVal} до ${maxVal})`,
+        extra: null,
+      };
+    }
+
+    if (step.stepNumber === 0) {
+      return {
+        badgeColor: 'text-[#8B5CF6] border-[#8B5CF6]/30 bg-[#121620]',
+        label: '',
+        valueText: n > 0 ? `Всего ${n} эл., диапазон ${minVal}..${maxVal}` : 'Массив пуст',
+        extra: null,
+      };
+    }
+
+    return {
+      badgeColor: 'text-[#8B5CF6] border-[#8B5CF6]/30 bg-[#121620]',
+      label: 'Выбранный элемент:',
+      valueText: n > 0 ? `[0] = ${array[0]} (всего ${n} эл., диапазон ${minVal}..${maxVal})` : 'Массив пуст',
+      extra: null,
+    };
+  }, [
+    status,
+    step.stepNumber,
+    step.type,
+    swappingIndices,
+    comparingIndices,
+    pivotIndex,
+    minMaxIndex,
+    currentIndex,
+    partitionRange,
+    array,
+    n,
+    minVal,
+    maxVal,
+  ]);
+
   const showValueLabels = !compact && n <= 36;
   const showEveryNthLabel = !compact && n > 36 && n <= 60;
 
   return (
-    <div className="bg-[#171D29] border border-white/10 rounded-2xl p-4 sm:p-5 space-y-4">
-      {/* Верхняя информационная строка над визуализацией */}
+    <div className="bg-[#171D29] border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
+      {/* Верхняя информационная строка над визуализацией (фиксированной структуры) */}
       {!compact && (
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10 min-h-[38px]">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="px-2.5 py-1 rounded-lg bg-[#121620] border border-white/10 font-mono text-[#F3F4F6]">
               Этап: <strong className="text-[#8B5CF6]">{step.phase}</strong>
@@ -193,7 +313,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
 
             {partitionRange !== null && (
               <span className="px-2.5 py-1 rounded-lg bg-orange-500/15 border border-orange-400/40 font-mono text-orange-200">
-                Участок разделения: [{partitionRange[0]}..{partitionRange[1]}]
+                Участок: [{partitionRange[0]}..{partitionRange[1]}]
               </span>
             )}
 
@@ -210,7 +330,17 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 font-mono text-xs text-[#22C55E]">
+              <Timer className="w-3.5 h-3.5" />
+              <span>Вычисление: {formatComputeTime(computeTimeMs)}</span>
+            </span>
+
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#06B6D4]/10 border border-[#06B6D4]/30 font-mono text-xs text-[#06B6D4]">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Анимация: {formatElapsedTime(animationElapsedMs)}</span>
+            </span>
+
             {algorithmId === 'heap' && n <= 31 && (
               <button
                 type="button"
@@ -242,20 +372,47 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
         </div>
       )}
 
-      {/* Инспектор элемента при наведении (особенно полезен на больших массивах) */}
-      {hoveredIdx !== null && array[hoveredIdx] !== undefined && (
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#121620] border border-[#8B5CF6]/40 text-xs font-mono">
-          <span className="inline-flex items-center gap-1.5 text-[#F3F4F6]">
-            <Eye className="w-3.5 h-3.5 text-[#06B6D4]" />
-            Элемент <strong className="text-[#8B5CF6]">[{hoveredIdx}]</strong> ={' '}
-            <strong className="text-[#06B6D4]">{array[hoveredIdx]}</strong>
-          </span>
-          <span className="text-[#9CA3AF]">{getBarStyle(hoveredIdx).stateLabel}</span>
+      {/* Постоянная полоска с выбранным / активным элементом (отображается сразу, предотвращая скачки макета и фризы) */}
+      {!compact && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-xl border text-xs font-mono min-h-[38px] transition-colors ${activeElementBanner.badgeColor}`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Crosshair className="w-3.5 h-3.5 shrink-0" />
+            {activeElementBanner.label && (
+              <span className="text-[#9CA3AF] font-sans font-medium">
+                {activeElementBanner.label}
+              </span>
+            )}
+            <strong className="text-[#F3F4F6]">{activeElementBanner.valueText}</strong>
+            {activeElementBanner.extra && (
+              <span className="px-2 py-0.5 rounded bg-black/25 text-[#F3F4F6] border border-white/10">
+                {activeElementBanner.extra}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[#9CA3AF]">
+            <Eye className="w-3.5 h-3.5 text-[#06B6D4] shrink-0" />
+            {hoveredIdx !== null && array[hoveredIdx] !== undefined ? (
+              <span>
+                Курсор: <strong className="text-[#8B5CF6]">[{hoveredIdx}]</strong> ={' '}
+                <strong className="text-[#06B6D4]">{array[hoveredIdx]}</strong>{' '}
+                <span className="text-[#F3F4F6]/80">({getBarStyle(hoveredIdx).stateLabel})</span>
+              </span>
+            ) : (
+              <span className="font-sans text-[11px] text-[#9CA3AF]/80">
+                Отсортировано: {sortedIndices.length} из {n} эл.
+              </span>
+            )}
+          </div>
         </div>
       )}
 
       {/* Основной холст со столбцами */}
-      <div className={`relative w-full ${heightClass} bg-[#0B0D12]/90 rounded-xl border border-white/5 px-2 sm:px-4 pt-8 pb-2 flex flex-col justify-end overflow-x-auto`}>
+      <div
+        className={`relative w-full ${heightClass} bg-[#0B0D12]/90 rounded-xl border border-white/5 px-2 sm:px-4 pt-6 pb-2 flex flex-col justify-end overflow-x-auto`}
+      >
         {/* Фоновая сетка */}
         <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-6 px-4 opacity-15">
           <div className="border-b border-dashed border-white/30 w-full" />
@@ -274,8 +431,8 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
             const heightPct = getBarHeightPercent(value);
             const style = getBarStyle(idx);
             const isHighlighted =
-              comparingIndices.includes(idx) ||
-              swappingIndices.includes(idx) ||
+              comparingSet.has(idx) ||
+              swappingSet.has(idx) ||
               pivotIndex === idx ||
               minMaxIndex === idx;
 
@@ -291,17 +448,19 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
                 onMouseLeave={() => setHoveredIdx(null)}
                 className="flex-1 min-w-[3px] h-full flex flex-col items-center justify-end group relative select-none"
               >
-                {/* Метка символа состояния сверху */}
-                {!compact && style.badge && n <= 45 && (
-                  <span className="text-[10px] font-bold text-[#F3F4F6] mb-0.5 leading-none">
-                    {style.badge}
-                  </span>
+                {/* Постоянный слот под символ состояния сверху (без скачков высоты в промежуточных состояниях) */}
+                {!compact && n <= 45 && (
+                  <div className="h-4 flex items-center justify-center mb-0.5">
+                    <span className="text-[10px] font-bold text-[#F3F4F6] leading-none">
+                      {style.badge || '\u00A0'}
+                    </span>
+                  </div>
                 )}
 
                 {/* Столбец */}
                 <div
                   style={{ height: `${heightPct}%` }}
-                  className={`w-full rounded-t-md border-t border-x ${style.bg} ${style.border} ${style.glow} transition-all duration-150 ease-out group-hover:brightness-125`}
+                  className={`w-full rounded-t-md border-t border-x ${style.bg} ${style.border} ${style.glow} transition-[height] duration-75 ease-out group-hover:brightness-125`}
                 />
 
                 {/* Числовое значение */}
@@ -367,17 +526,17 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
                   <div key={level} className="flex items-center justify-center gap-1.5 sm:gap-3">
                     {levelIndices.map((nodeIdx) => {
                       const inActiveHeap = heapSize === null || nodeIdx < heapSize;
-                      const isCmp = comparingIndices.includes(nodeIdx);
-                      const isSwp = swappingIndices.includes(nodeIdx);
+                      const isCmp = comparingSet.has(nodeIdx);
+                      const isSwp = swappingSet.has(nodeIdx);
                       const isRoot = nodeIdx === 0;
                       return (
                         <div
                           key={nodeIdx}
-                          className={`px-2 py-1 rounded-lg border text-center font-mono text-xs transition-all ${
+                          className={`px-2 py-1 rounded-lg border text-center font-mono text-xs transition-colors ${
                             isSwp
-                              ? 'bg-[#06B6D4]/25 border-[#06B6D4] text-white scale-105'
+                              ? 'bg-[#06B6D4]/25 border-[#06B6D4] text-white'
                               : isCmp
-                              ? 'bg-[#F59E0B]/25 border-[#F59E0B] text-white scale-105'
+                              ? 'bg-[#F59E0B]/25 border-[#F59E0B] text-white'
                               : !inActiveHeap
                               ? 'bg-[#22C55E]/15 border-[#22C55E]/40 text-[#22C55E] opacity-60'
                               : isRoot
@@ -418,7 +577,7 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
             {countArray.map((bucket) => (
               <div
                 key={bucket.value}
-                className={`min-w-[42px] px-2 py-1.5 rounded-lg border text-center font-mono transition-all ${
+                className={`min-w-[42px] px-2 py-1.5 rounded-lg border text-center font-mono transition-colors ${
                   bucket.active
                     ? 'bg-[#06B6D4]/25 border-[#06B6D4] text-white shadow-glow-cyan'
                     : bucket.count > 0
@@ -466,4 +625,3 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
     </div>
   );
 };
-

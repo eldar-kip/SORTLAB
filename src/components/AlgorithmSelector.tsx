@@ -97,7 +97,7 @@ export const AlgorithmSelector: React.FC<AlgorithmSelectorProps> = ({
                 {alg.nameRu}
               </span>
               <span className="mt-1.5 inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/30 text-[#06B6D4] w-fit">
-                {alg.averageComplexity.split(' ')[0]}
+                {alg.averageComplexity}
               </span>
             </button>
           );
@@ -148,12 +148,12 @@ export const AlgorithmSelector: React.FC<AlgorithmSelectorProps> = ({
           <div className="h-6 w-px bg-white/10" />
           <div>
             <div className="text-[10px] text-[#9CA3AF]">Средний</div>
-            <div className="text-[#F59E0B] font-bold">{currentAlg.averageComplexity.split(' ')[0]}</div>
+            <div className="text-[#F59E0B] font-bold">{currentAlg.averageComplexity}</div>
           </div>
           <div className="h-6 w-px bg-white/10" />
           <div>
             <div className="text-[10px] text-[#9CA3AF]">Худший</div>
-            <div className="text-[#EF4444] font-bold">{currentAlg.worstComplexity.split(' ')[0]}</div>
+            <div className="text-[#EF4444] font-bold">{currentAlg.worstComplexity}</div>
           </div>
         </div>
       </div>
@@ -190,7 +190,11 @@ export const AlgorithmSelector: React.FC<AlgorithmSelectorProps> = ({
                       {opt.title}
                     </span>
                     <span className="text-[10px] font-mono text-[#06B6D4]">
-                      {opt.formula.split('(')[0]}
+                      {opt.id === 'middle'
+                        ? 'arr[mid]'
+                        : opt.id === 'median3'
+                        ? 'median(3)'
+                        : opt.formula}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#9CA3AF] mt-1 leading-snug">

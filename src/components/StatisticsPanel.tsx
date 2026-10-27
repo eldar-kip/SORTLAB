@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlgorithmId } from '../types/algorithm';
 import { PlaybackStatus, SortingStep } from '../types/visualization';
+import { formatComputeTime, formatElapsedTime } from '../utils/complexity';
 import {
   GitCompareArrows,
   ArrowLeftRight,
@@ -59,6 +60,12 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
 }) => {
   const statusInfo = STATUS_CONFIG[status];
 
+  // На промежуточных шагах показываем текущую долю времени вычисления относительно полного прогона
+  const currentComputeMs =
+    status === 'completed' || totalSteps <= 0 || step.stepNumber === 0
+      ? computeTimeMs
+      : computeTimeMs * (step.stepNumber / totalSteps);
+
   const getMetricNote = () => {
     if (algorithmId === 'counting') {
       return 'Примечание: Counting Sort — несравнительный алгоритм (0 попарных сравнений и 0 прямых обменов); операции учитываются в показателе «Перемещения / Записи» (инкремент частот и запись в массив).';
@@ -66,7 +73,7 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
     if (algorithmId === 'merge') {
       return 'Примечание: В Merge Sort элементы не меняются местами напрямую (обмены = 0), а последовательно записываются из сливаемых половин («Перемещения / Записи»).';
     }
-    return 'Примечание: «Время вычисления» показывает чистое процессорное время работы алгоритма в мс, а «Длительность анимации» — время визуального воспроизведения.';
+    return 'Примечание: «Вычисление» показывает чистое процессорное время работы алгоритма (мкс / мс / с), а «Анимация» — фактическое время визуального проигрывания.';
   };
 
   return (
@@ -125,8 +132,11 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
             <Timer className="w-3.5 h-3.5 text-[#22C55E]" />
             <span>Вычисление</span>
           </div>
-          <div className="text-lg font-mono font-bold text-[#22C55E] mt-1">
-            {computeTimeMs.toFixed(2)} <span className="text-xs font-normal">мс</span>
+          <div
+            className="text-base sm:text-lg font-mono font-bold text-[#22C55E] mt-1 truncate"
+            title={`Полное чистое время алгоритма: ${formatComputeTime(computeTimeMs)}`}
+          >
+            {formatComputeTime(currentComputeMs)}
           </div>
         </div>
 
@@ -136,9 +146,11 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
             <Clock className="w-3.5 h-3.5 text-[#06B6D4]" />
             <span>Анимация</span>
           </div>
-          <div className="text-lg font-mono font-bold text-[#F3F4F6] mt-1">
-            {(animationElapsedMs / 1000).toFixed(1)}{' '}
-            <span className="text-xs font-normal text-[#9CA3AF]">с</span>
+          <div
+            className="text-sm sm:text-base font-mono font-bold text-[#F3F4F6] mt-1 truncate"
+            title={formatElapsedTime(animationElapsedMs)}
+          >
+            {formatElapsedTime(animationElapsedMs)}
           </div>
         </div>
 
@@ -170,4 +182,3 @@ export const StatisticsPanel: React.FC<StatisticsPanelProps> = ({
     </div>
   );
 };
-

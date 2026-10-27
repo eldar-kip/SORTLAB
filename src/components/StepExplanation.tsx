@@ -51,9 +51,9 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
         </div>
       )}
 
-      {/* Основной блок динамического объяснения */}
+      {/* Основной блок динамического объяснения (фиксированная структура без скачков высоты) */}
       <div
-        className={`p-4 rounded-xl border transition-colors ${
+        className={`p-4 rounded-xl border transition-colors min-h-[112px] flex flex-col justify-between ${
           isCompleted
             ? 'bg-[#22C55E]/10 border-[#22C55E]/40'
             : hasSwap
@@ -83,11 +83,17 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
             <p className="text-xs sm:text-sm text-[#F3F4F6]/90 leading-relaxed">
               {step.description}
             </p>
-            {step.reason && (
-              <div className="pt-1.5 mt-1.5 border-t border-white/10 text-xs text-[#06B6D4] font-medium">
-                Причина решения: {step.reason}
-              </div>
-            )}
+            <div className="pt-1.5 mt-1.5 border-t border-white/10 text-xs text-[#06B6D4] font-medium">
+              {step.reason ? (
+                <>Причина решения: {step.reason}</>
+              ) : isCompleted ? (
+                <>Итог: все элементы массива стоят в заданном порядке.</>
+              ) : step.stepNumber === 0 ? (
+                <>Ожидание: выберите скорость и нажмите «Запустить» или «Следующий шаг».</>
+              ) : (
+                <>Действие: плановый переход к следующему шагу этапа «{step.phase}».</>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -96,7 +102,7 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
         <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
           <div className="text-[11px] text-[#9CA3AF]">Сравниваемые индексы</div>
-          <div className="font-mono font-bold text-[#F59E0B] mt-0.5">
+          <div className="font-mono font-bold text-[#F59E0B] mt-0.5 truncate">
             {step.comparingIndices.length > 0
               ? step.comparingIndices.map((idx) => `[${idx}]`).join(' и ')
               : '—'}
@@ -105,7 +111,7 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
 
         <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
           <div className="text-[11px] text-[#9CA3AF]">Сравниваемые значения</div>
-          <div className="font-mono font-bold text-[#F3F4F6] mt-0.5">
+          <div className="font-mono font-bold text-[#F3F4F6] mt-0.5 truncate">
             {step.comparingIndices.length > 0
               ? step.comparingIndices.map((idx) => step.array[idx]).join(' vs ')
               : step.swappingIndices.length > 0
@@ -116,7 +122,7 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
 
         <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
           <div className="text-[11px] text-[#9CA3AF]">Активный / Опорный</div>
-          <div className="font-mono font-bold text-[#06B6D4] mt-0.5">
+          <div className="font-mono font-bold text-[#06B6D4] mt-0.5 truncate">
             {step.pivotIndex !== null
               ? `Pivot [${step.pivotIndex}] = ${step.array[step.pivotIndex]}`
               : step.minMaxIndex !== null
@@ -129,7 +135,7 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
 
         <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
           <div className="text-[11px] text-[#9CA3AF]">Выполнено операций</div>
-          <div className="font-mono font-bold text-[#22C55E] mt-0.5">
+          <div className="font-mono font-bold text-[#22C55E] mt-0.5 truncate">
             {step.stats.comparisons} ср. / {step.stats.swaps} обм. / {step.stats.moves} зап.
           </div>
         </div>
@@ -137,4 +143,3 @@ export const StepExplanation: React.FC<StepExplanationProps> = ({
     </div>
   );
 };
-

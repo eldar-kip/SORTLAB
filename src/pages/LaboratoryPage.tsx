@@ -12,6 +12,7 @@ import { PredictNextStepWidget } from '../components/PredictNextStepWidget';
 import { getAlgorithmById } from '../data/algorithms';
 import { AlgorithmId } from '../types/algorithm';
 import { exportExperimentsToCsv } from '../utils/statistics';
+import { formatComputeTime } from '../utils/complexity';
 import {
   FlaskConical,
   Sparkles,
@@ -35,9 +36,13 @@ const VALID_ALGORITHMS: AlgorithmId[] = [
 ];
 
 export const LaboratoryPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showPredictMode, setShowPredictMode] = useState<boolean>(false);
+
+  const paramAlgRaw = searchParams.get('algorithm') as AlgorithmId | null;
+  const initialAlgFromUrl =
+    paramAlgRaw && VALID_ALGORITHMS.includes(paramAlgRaw) ? paramAlgRaw : undefined;
 
   const {
     algorithmId,
@@ -72,15 +77,17 @@ export const LaboratoryPage: React.FC = () => {
     jumpToStep,
     restoreExperiment,
     clearHistory,
-  } = useSortingVisualizer();
+  } = useSortingVisualizer(initialAlgFromUrl);
 
-  // Поддержка перехода из каталога с параметром ?algorithm=...
+  // Поддержка перехода из каталога/детального разбора с параметром ?algorithm=...
+  // Выбираем переданный алгоритм и очищаем query-параметр, чтобы можно было свободно переключаться на другие сортировки
   useEffect(() => {
     const paramAlg = searchParams.get('algorithm') as AlgorithmId | null;
     if (paramAlg && VALID_ALGORITHMS.includes(paramAlg)) {
       setAlgorithmId(paramAlg);
+      setSearchParams({}, { replace: true });
     }
-  }, [searchParams, setAlgorithmId]);
+  }, [searchParams, setAlgorithmId, setSearchParams]);
 
   const currentAlgInfo = getAlgorithmById(algorithmId);
 
@@ -220,6 +227,8 @@ export const LaboratoryPage: React.FC = () => {
         step={currentStep}
         algorithmId={algorithmId}
         status={status}
+        computeTimeMs={computeTimeMs}
+        animationElapsedMs={animationElapsedMs}
       />
 
       {/* 8. Панель управления сортировкой */}
@@ -333,7 +342,7 @@ export const LaboratoryPage: React.FC = () => {
                       {rec.moves}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-[#22C55E]">
-                      {rec.computeTimeMs.toFixed(2)} мс
+                      {formatComputeTime(rec.computeTimeMs)}
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <button

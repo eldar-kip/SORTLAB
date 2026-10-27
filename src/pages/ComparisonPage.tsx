@@ -3,12 +3,17 @@ import { AlgorithmId, ArrayPresetType, SortOrder } from '../types/algorithm';
 import { ALGORITHMS_DATA, getAlgorithmById } from '../data/algorithms';
 import { executeSortingAlgorithm } from '../algorithms';
 import { generateArrayByPreset } from '../utils/arrayGenerator';
-import { runPureAlgorithmBenchmark } from '../utils/complexity';
+import {
+  formatComputeTime,
+  formatElapsedTime,
+  runPureAlgorithmBenchmark,
+} from '../utils/complexity';
 import { PlaybackStatus } from '../types/visualization';
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -59,8 +64,11 @@ export const ComparisonPage: React.FC = () => {
   );
   const [tickIndex, setTickIndex] = useState<number>(0);
   const [status, setStatus] = useState<PlaybackStatus>('idle');
+  const [elapsedAnimMs, setElapsedAnimMs] = useState<number>(0);
 
   const timerRef = useRef<number | null>(null);
+  const runStartPerfRef = useRef<number | null>(null);
+  const accumulatedAnimMsRef = useRef<number>(0);
   const speedRef = useRef<number>(speedMs);
   const statusRef = useRef<PlaybackStatus>(status);
 
@@ -71,6 +79,13 @@ export const ComparisonPage: React.FC = () => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+    if (runStartPerfRef.current !== null) {
+      accumulatedAnimMsRef.current += Math.max(
+        0,
+        performance.now() - runStartPerfRef.current
+      );
+      runStartPerfRef.current = null;
     }
   }, []);
 
@@ -108,13 +123,22 @@ export const ComparisonPage: React.FC = () => {
       return;
     }
 
+    runStartPerfRef.current = performance.now();
+
     const scheduleTick = () => {
       timerRef.current = window.setTimeout(() => {
         if (statusRef.current !== 'running') return;
+        if (runStartPerfRef.current !== null) {
+          setElapsedAnimMs(
+            accumulatedAnimMsRef.current +
+              (performance.now() - runStartPerfRef.current)
+          );
+        }
         setTickIndex((prev) => {
           const next = prev + 1;
           if (next >= maxTotalSteps) {
             clearTimer();
+            setElapsedAnimMs(accumulatedAnimMsRef.current);
             setStatus('completed');
             return maxTotalSteps;
           }
@@ -130,6 +154,9 @@ export const ComparisonPage: React.FC = () => {
 
   const handleGenerateNewData = (newPreset: ArrayPresetType = preset, newSize: number = arraySize) => {
     clearTimer();
+    accumulatedAnimMsRef.current = 0;
+    runStartPerfRef.current = null;
+    setElapsedAnimMs(0);
     setStatus('idle');
     setTickIndex(0);
     setPreset(newPreset);
@@ -138,7 +165,10 @@ export const ComparisonPage: React.FC = () => {
   };
 
   const handleStartAll = () => {
-    if (tickIndex >= maxTotalSteps) {
+    if (tickIndex >= maxTotalSteps || tickIndex === 0) {
+      accumulatedAnimMsRef.current = 0;
+      runStartPerfRef.current = null;
+      setElapsedAnimMs(0);
       setTickIndex(0);
     }
     setStatus('running');
@@ -146,11 +176,15 @@ export const ComparisonPage: React.FC = () => {
 
   const handlePauseAll = () => {
     clearTimer();
+    setElapsedAnimMs(accumulatedAnimMsRef.current);
     setStatus('paused');
   };
 
   const handleResetAll = () => {
     clearTimer();
+    accumulatedAnimMsRef.current = 0;
+    runStartPerfRef.current = null;
+    setElapsedAnimMs(0);
     setStatus('idle');
     setTickIndex(0);
   };
@@ -164,7 +198,8 @@ export const ComparisonPage: React.FC = () => {
         Сравнения: res.totalComparisons,
         Обмены: res.totalSwaps,
         Перемещения: res.totalMoves,
-        ВремяМс: Number(res.computeTimeMs.toFixed(3)),
+        ВремяМс: Number(res.computeTimeMs.toFixed(5)),
+        ВремяТекст: formatComputeTime(res.computeTimeMs),
       };
     });
   }, [results]);
@@ -265,6 +300,9 @@ export const ComparisonPage: React.FC = () => {
                 <div className="text-[10px] text-[#9CA3AF] truncate mt-0.5">
                   {alg.nameRu}
                 </div>
+                <span className="mt-1.5 inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/30 text-[#06B6D4]">
+                  {alg.averageComplexity}
+                </span>
               </button>
             );
           })}
@@ -369,6 +407,13 @@ export const ComparisonPage: React.FC = () => {
                 <option value={20} className="bg-[#121620]">Быстро</option>
               </select>
             </div>
+
+            <div className="flex items-center gap-1.5 bg-[#121620] px-3 py-1.5 rounded-xl border border-white/10 font-mono">
+              <span className="text-[#9CA3AF] font-sans">Время анимации:</span>
+              <span className="text-[#06B6D4] font-bold">
+                {formatElapsedTime(elapsedAnimMs)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -377,16 +422,34 @@ export const ComparisonPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {results.map((res) => {
           const info = getAlgorithmById(res.algorithmId);
-          const localStepIdx = Math.min(tickIndex, res.steps.length - 1);
+          const totalAlgSteps = Math.max(1, res.steps.length - 1);
+          const localStepIdx = Math.min(tickIndex, totalAlgSteps);
           const step = res.steps[localStepIdx];
-          const isFinished = localStepIdx >= res.steps.length - 1;
+          const isFinished = localStepIdx >= totalAlgSteps && tickIndex > 0;
           const maxVal = Math.max(...step.array, 1);
           const minVal = Math.min(...step.array, 0);
+          const currentAlgComputeMs =
+            isFinished || tickIndex === 0
+              ? res.computeTimeMs
+              : res.computeTimeMs * (localStepIdx / totalAlgSteps);
+
+          const activeCardBanner =
+            step.swappingIndices.length >= 2
+              ? `Обмен: [${step.swappingIndices[0]}]=${step.array[step.swappingIndices[0]]} ⇄ [${step.swappingIndices[1]}]=${step.array[step.swappingIndices[1]]}`
+              : step.comparingIndices.length >= 2
+              ? `Сравнение: [${step.comparingIndices[0]}]=${step.array[step.comparingIndices[0]]} ? [${step.comparingIndices[1]}]=${step.array[step.comparingIndices[1]]}`
+              : step.pivotIndex !== null
+              ? `Pivot: [${step.pivotIndex}] = ${step.array[step.pivotIndex]}`
+              : step.currentIndex !== null
+              ? `Активный: [${step.currentIndex}] = ${step.array[step.currentIndex]}`
+              : isFinished
+              ? `Отсортирован (${step.array.length} эл.)`
+              : `Ожидание старта ([0] = ${step.array[0]})`;
 
           return (
             <div
               key={res.algorithmId}
-              className={`bg-[#171D29] border rounded-2xl p-4 sm:p-5 space-y-4 transition-all ${
+              className={`bg-[#171D29] border rounded-2xl p-4 sm:p-5 space-y-3 transition-colors ${
                 isFinished ? 'border-[#22C55E]/60' : 'border-white/10'
               }`}
             >
@@ -401,7 +464,7 @@ export const ComparisonPage: React.FC = () => {
                       {info.nameEn}
                     </h3>
                     <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#121620] text-[#06B6D4]">
-                      {info.averageComplexity.split(' ')[0]}
+                      {info.averageComplexity}
                     </span>
                   </div>
                   <p className="text-xs text-[#9CA3AF] mt-0.5">{info.nameRu}</p>
@@ -409,13 +472,19 @@ export const ComparisonPage: React.FC = () => {
 
                 {isFinished ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#22C55E]/15 border border-[#22C55E]/40 text-xs font-bold text-[#22C55E]">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Завершён ({res.steps.length - 1} ш.)
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Завершён ({totalAlgSteps} ш.)
                   </span>
                 ) : (
                   <span className="text-xs font-mono text-[#9CA3AF]">
-                    Шаг {localStepIdx} / {res.steps.length - 1}
+                    Шаг {localStepIdx} / {totalAlgSteps}
                   </span>
                 )}
+              </div>
+
+              {/* Постоянная полоска выбранного элемента для алгоритма */}
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#121620] border border-white/10 text-xs font-mono min-h-[32px]">
+                <span className="text-[#F3F4F6] truncate">{activeCardBanner}</span>
+                <span className="text-[#9CA3AF] shrink-0 ml-2">{step.phase}</span>
               </div>
 
               {/* Холст столбцов */}
@@ -439,7 +508,7 @@ export const ComparisonPage: React.FC = () => {
                     <div
                       key={idx}
                       style={{ height: `${heightPct}%` }}
-                      className={`flex-1 min-w-[3px] rounded-t-sm transition-all duration-100 ${bgClass}`}
+                      className={`flex-1 min-w-[3px] rounded-t-sm transition-[height] duration-75 ${bgClass}`}
                       title={`[${idx}] = ${val}`}
                     />
                   );
@@ -468,8 +537,11 @@ export const ComparisonPage: React.FC = () => {
                 </div>
                 <div className="p-2 rounded-xl bg-[#121620] border border-white/5">
                   <div className="text-[10px] text-[#9CA3AF]">Вычисление</div>
-                  <div className="font-mono font-bold text-[#22C55E]">
-                    {res.computeTimeMs.toFixed(2)} мс
+                  <div
+                    className="font-mono font-bold text-[#22C55E] truncate"
+                    title={`Итоговое время: ${formatComputeTime(res.computeTimeMs)}`}
+                  >
+                    {formatComputeTime(currentAlgComputeMs)}
                   </div>
                 </div>
               </div>
@@ -544,11 +616,15 @@ export const ComparisonPage: React.FC = () => {
           </h3>
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={currentChartData}>
+              <BarChart data={currentChartData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis dataKey="name" stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
                 <YAxis stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
                 <Tooltip
+                  formatter={(value: number) => [
+                    formatComputeTime(Number(value)),
+                    'Время вычисления',
+                  ]}
                   contentStyle={{
                     backgroundColor: '#121620',
                     borderColor: 'rgba(255,255,255,0.15)',
@@ -556,7 +632,20 @@ export const ComparisonPage: React.FC = () => {
                     fontSize: '12px',
                   }}
                 />
-                <Bar dataKey="ВремяМс" name="Время вычисления (мс)" fill="#22C55E" radius={[6, 6, 0, 0]} />
+                <Bar
+                  dataKey="ВремяМс"
+                  name="Время вычисления"
+                  fill="#22C55E"
+                  radius={[6, 6, 0, 0]}
+                  minPointSize={8}
+                >
+                  <LabelList
+                    dataKey="ВремяТекст"
+                    position="top"
+                    fill="#22C55E"
+                    fontSize={10}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -599,6 +688,10 @@ export const ComparisonPage: React.FC = () => {
                   <XAxis dataKey="size" stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
                   <YAxis stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
                   <Tooltip
+                    formatter={(value: number, name: string) => [
+                      formatComputeTime(Number(value)),
+                      name,
+                    ]}
                     contentStyle={{
                       backgroundColor: '#171D29',
                       borderColor: 'rgba(255,255,255,0.15)',

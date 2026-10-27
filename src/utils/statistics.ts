@@ -1,5 +1,6 @@
 import { ExperimentRecord } from '../types/visualization';
 import { AlgorithmId, SortOrder } from '../types/algorithm';
+import { formatComputeTime } from './complexity';
 
 const SETTINGS_KEY = 'sortlab_settings_v1';
 const HISTORY_KEY = 'sortlab_history_v1';
@@ -100,7 +101,7 @@ export function exportExperimentsToCsv(records: ExperimentRecord[]): void {
     escapeCsvField(rec.swaps),
     escapeCsvField(rec.moves),
     escapeCsvField(rec.totalSteps),
-    escapeCsvField(rec.computeTimeMs.toFixed(3)),
+    escapeCsvField(formatComputeTime(rec.computeTimeMs)),
   ]);
 
   const csvContent = '\uFEFF' + [headers.map(escapeCsvField).join(';'), ...rows.map((r) => r.join(';'))].join('\r\n');

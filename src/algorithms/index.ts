@@ -1,5 +1,6 @@
 import { AlgorithmId, QuickPivotStrategy, SortOrder } from '../types/algorithm';
 import { AlgorithmExecutionResult } from '../types/visualization';
+import { runPureAlgorithmBenchmark } from '../utils/complexity';
 import { runBubbleSort } from './bubbleSort';
 import { runSelectionSort } from './selectionSort';
 import { runInsertionSort } from './insertionSort';
@@ -15,26 +16,43 @@ export function executeSortingAlgorithm(
   order: SortOrder = 'asc',
   pivotStrategy: QuickPivotStrategy = 'middle'
 ): AlgorithmExecutionResult {
+  let result: AlgorithmExecutionResult;
+
   switch (algorithmId) {
     case 'bubble':
-      return runBubbleSort(inputArray, order);
+      result = runBubbleSort(inputArray, order);
+      break;
     case 'selection':
-      return runSelectionSort(inputArray, order);
+      result = runSelectionSort(inputArray, order);
+      break;
     case 'insertion':
-      return runInsertionSort(inputArray, order);
+      result = runInsertionSort(inputArray, order);
+      break;
     case 'merge':
-      return runMergeSort(inputArray, order);
+      result = runMergeSort(inputArray, order);
+      break;
     case 'quick':
-      return runQuickSort(inputArray, order, pivotStrategy);
+      result = runQuickSort(inputArray, order, pivotStrategy);
+      break;
     case 'heap':
-      return runHeapSort(inputArray, order);
+      result = runHeapSort(inputArray, order);
+      break;
     case 'shell':
-      return runShellSort(inputArray, order);
+      result = runShellSort(inputArray, order);
+      break;
     case 'counting':
-      return runCountingSort(inputArray, order);
+      result = runCountingSort(inputArray, order);
+      break;
     default:
-      return runBubbleSort(inputArray, order);
+      result = runBubbleSort(inputArray, order);
+      break;
   }
+
+  // Измеряем чистое процессорное время алгоритма (без накладных расходов на генерацию кадров визуализации)
+  const pureBench = runPureAlgorithmBenchmark(algorithmId, inputArray, order, pivotStrategy);
+  result.computeTimeMs = pureBench.computeTimeMs;
+
+  return result;
 }
 
 export {

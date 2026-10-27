@@ -163,13 +163,13 @@ export const AlgorithmsPage: React.FC = () => {
                   <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
                     <div className="text-[10px] text-[#9CA3AF]">Средний</div>
                     <div className="font-mono font-bold text-[#F59E0B] mt-0.5">
-                      {alg.averageComplexity.split(' ')[0]}
+                      {alg.averageComplexity}
                     </div>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">
                     <div className="text-[10px] text-[#9CA3AF]">Худший</div>
                     <div className="font-mono font-bold text-[#EF4444] mt-0.5">
-                      {alg.worstComplexity.split(' ')[0]}
+                      {alg.worstComplexity}
                     </div>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#121620] border border-white/5">

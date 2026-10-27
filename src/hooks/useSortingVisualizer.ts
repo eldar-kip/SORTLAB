@@ -26,10 +26,12 @@ const PRESET_NAMES: Record<ArrayPresetType, string> = {
   custom: 'Пользовательский массив',
 };
 
-export function useSortingVisualizer() {
+export function useSortingVisualizer(initialAlgorithmOverride?: AlgorithmId) {
   const initialSettings = useMemo(() => loadUserSettings(), []);
 
-  const [algorithmId, setAlgorithmIdState] = useState<AlgorithmId>(initialSettings.algorithmId);
+  const [algorithmId, setAlgorithmIdState] = useState<AlgorithmId>(
+    initialAlgorithmOverride ?? initialSettings.algorithmId
+  );
   const [arraySize, setArraySizeState] = useState<number>(initialSettings.arraySize);
   const [speedMs, setSpeedMsState] = useState<number>(initialSettings.speedMs);
   const [order, setOrderState] = useState<SortOrder>(initialSettings.order);
@@ -54,6 +56,10 @@ export function useSortingVisualizer() {
   const statusRef = useRef<PlaybackStatus>(status);
   const recordedRunRef = useRef<boolean>(false);
 
+  // Точное отслеживание реального времени работы анимации через performance.now()
+  const runStartPerfRef = useRef<number | null>(null);
+  const accumulatedAnimMsRef = useRef<number>(0);
+
   speedRef.current = speedMs;
   statusRef.current = status;
 
@@ -65,6 +71,10 @@ export function useSortingVisualizer() {
     if (animTimerRef.current !== null) {
       window.clearInterval(animTimerRef.current);
       animTimerRef.current = null;
+    }
+    if (runStartPerfRef.current !== null) {
+      accumulatedAnimMsRef.current += Math.max(0, performance.now() - runStartPerfRef.current);
+      runStartPerfRef.current = null;
     }
   }, []);
 
@@ -83,6 +93,8 @@ export function useSortingVisualizer() {
     (sourceArray: number[], algId: AlgorithmId, sortOrder: SortOrder, pStrategy: QuickPivotStrategy) => {
       clearTimers();
       recordedRunRef.current = false;
+      accumulatedAnimMsRef.current = 0;
+      runStartPerfRef.current = null;
       const result = executeSortingAlgorithm(algId, sourceArray, sortOrder, pStrategy);
       setSteps(result.steps);
       setCurrentStepIndex(0);
@@ -134,26 +146,39 @@ export function useSortingVisualizer() {
     [algorithmId, initialArray, order, preset, computeTimeMs]
   );
 
-  // Основной цикл воспроизведения шагов с динамической скоростью
+  // Основной цикл воспроизведения шагов с динамической скоростью и точным временем без лишних ререндеров
   useEffect(() => {
     if (status !== 'running') {
       clearTimers();
       return;
     }
 
-    const startTick = performance.now();
+    runStartPerfRef.current = performance.now();
+
+    // Плавное обновление индикатора времени для медленных режимов (раз в 150 мс вместо 50 мс)
     animTimerRef.current = window.setInterval(() => {
-      setAnimationElapsedMs((prev) => prev + 50);
-    }, 50);
+      if (runStartPerfRef.current !== null) {
+        const elapsed =
+          accumulatedAnimMsRef.current + (performance.now() - runStartPerfRef.current);
+        setAnimationElapsedMs(elapsed);
+      }
+    }, 150);
 
     const scheduleNext = () => {
       timerRef.current = window.setTimeout(() => {
         if (statusRef.current !== 'running') return;
 
+        if (runStartPerfRef.current !== null) {
+          const elapsed =
+            accumulatedAnimMsRef.current + (performance.now() - runStartPerfRef.current);
+          setAnimationElapsedMs(elapsed);
+        }
+
         setCurrentStepIndex((prevIdx) => {
           const nextIdx = prevIdx + 1;
           if (nextIdx >= steps.length - 1) {
             clearTimers();
+            setAnimationElapsedMs(accumulatedAnimMsRef.current);
             setStatus('completed');
             if (steps[steps.length - 1]) {
               recordCompletedExperiment(steps[steps.length - 1], steps.length - 1);
@@ -169,7 +194,6 @@ export function useSortingVisualizer() {
     scheduleNext();
 
     return () => {
-      void startTick;
       clearTimers();
     };
   }, [status, steps, clearTimers, recordCompletedExperiment]);
@@ -180,8 +204,10 @@ export function useSortingVisualizer() {
       setStatus('completed');
       return;
     }
-    if (currentStepIndex >= steps.length - 1) {
+    if (currentStepIndex >= steps.length - 1 || currentStepIndex === 0) {
       recordedRunRef.current = false;
+      accumulatedAnimMsRef.current = 0;
+      runStartPerfRef.current = null;
       setCurrentStepIndex(0);
       setAnimationElapsedMs(0);
     }
@@ -191,6 +217,7 @@ export function useSortingVisualizer() {
   const pause = useCallback(() => {
     if (status === 'running') {
       clearTimers();
+      setAnimationElapsedMs(accumulatedAnimMsRef.current);
       setStatus('paused');
     }
   }, [status, clearTimers]);
@@ -206,6 +233,8 @@ export function useSortingVisualizer() {
     if (currentStepIndex < steps.length - 1) {
       const nextIdx = currentStepIndex + 1;
       setCurrentStepIndex(nextIdx);
+      accumulatedAnimMsRef.current += speedRef.current;
+      setAnimationElapsedMs(accumulatedAnimMsRef.current);
       if (nextIdx >= steps.length - 1) {
         setStatus('completed');
         if (steps[nextIdx]) {
@@ -222,6 +251,8 @@ export function useSortingVisualizer() {
     if (currentStepIndex > 0) {
       const prevIdx = currentStepIndex - 1;
       setCurrentStepIndex(prevIdx);
+      accumulatedAnimMsRef.current = Math.max(0, accumulatedAnimMsRef.current - speedRef.current);
+      setAnimationElapsedMs(prevIdx === 0 ? 0 : accumulatedAnimMsRef.current);
       setStatus(prevIdx === 0 ? 'idle' : 'paused');
     }
   }, [clearTimers, currentStepIndex]);
@@ -229,6 +260,8 @@ export function useSortingVisualizer() {
   const reset = useCallback(() => {
     clearTimers();
     recordedRunRef.current = false;
+    accumulatedAnimMsRef.current = 0;
+    runStartPerfRef.current = null;
     setCurrentStepIndex(0);
     setAnimationElapsedMs(0);
     setStatus('idle');
@@ -264,11 +297,10 @@ export function useSortingVisualizer() {
 
   const setAlgorithmId = useCallback(
     (newAlg: AlgorithmId) => {
-      if (newAlg === algorithmId) return;
       clearTimers();
-      setAlgorithmIdState(newAlg);
+      setAlgorithmIdState((prev) => (prev === newAlg ? prev : newAlg));
     },
-    [algorithmId, clearTimers]
+    [clearTimers]
   );
 
   const setArraySize = useCallback(
@@ -292,20 +324,18 @@ export function useSortingVisualizer() {
 
   const setOrder = useCallback(
     (newOrder: SortOrder) => {
-      if (newOrder === order) return;
       clearTimers();
-      setOrderState(newOrder);
+      setOrderState((prev) => (prev === newOrder ? prev : newOrder));
     },
-    [order, clearTimers]
+    [clearTimers]
   );
 
   const setPivotStrategy = useCallback(
     (newStrategy: QuickPivotStrategy) => {
-      if (newStrategy === pivotStrategy) return;
       clearTimers();
-      setPivotStrategyState(newStrategy);
+      setPivotStrategyState((prev) => (prev === newStrategy ? prev : newStrategy));
     },
-    [pivotStrategy, clearTimers]
+    [clearTimers]
   );
 
   const jumpToStep = useCallback(
@@ -313,6 +343,8 @@ export function useSortingVisualizer() {
       clearTimers();
       const clamped = Math.max(0, Math.min(steps.length - 1, stepIdx));
       setCurrentStepIndex(clamped);
+      accumulatedAnimMsRef.current = clamped * speedRef.current;
+      setAnimationElapsedMs(clamped === 0 ? 0 : accumulatedAnimMsRef.current);
       if (clamped === 0) {
         setStatus('idle');
       } else if (clamped >= steps.length - 1) {
@@ -405,4 +437,3 @@ export function useSortingVisualizer() {
     clearHistory,
   };
 }
-

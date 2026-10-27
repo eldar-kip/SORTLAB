@@ -14,8 +14,9 @@ import {
   CheckCircle2,
   Layers,
 } from 'lucide-react';
-import { ALGORITHMS_DATA } from '../data/algorithms';
+import { ALGORITHMS_DATA, getAlgorithmById } from '../data/algorithms';
 import { executeSortingAlgorithm } from '../algorithms';
+import { formatComputeTime } from '../utils/complexity';
 import { AlgorithmId } from '../types/algorithm';
 
 const HERO_INITIAL_ARRAY = [68, 24, 91, 14, 52, 83, 37, 19, 76, 45, 31, 60];
@@ -135,6 +136,28 @@ export const HomePage: React.FC = () => {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Полоска параметров и времени работы алгоритма в демо */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-[#121620] border border-white/10 text-xs font-mono">
+                  <span className="text-[#F3F4F6]">
+                    Сложность:{' '}
+                    <strong className="text-[#06B6D4]">
+                      {getAlgorithmById(heroAlg).averageComplexity}
+                    </strong>
+                  </span>
+                  <span className="text-[#9CA3AF]">
+                    Сравнений:{' '}
+                    <strong className="text-[#F59E0B]">
+                      {currentHeroStep.stats.comparisons}
+                    </strong>
+                  </span>
+                  <span className="text-[#9CA3AF]">
+                    Время:{' '}
+                    <strong className="text-[#22C55E]">
+                      {formatComputeTime(heroResult.computeTimeMs)}
+                    </strong>
+                  </span>
                 </div>
 
                 {/* Столбцы */}
@@ -356,7 +379,7 @@ export const HomePage: React.FC = () => {
                   <div className="text-xs">
                     <span className="text-[#9CA3AF]">Сложность: </span>
                     <span className="font-mono font-bold text-[#06B6D4]">
-                      {alg.averageComplexity.split(' ')[0]}
+                      {alg.averageComplexity}
                     </span>
                   </div>
 
