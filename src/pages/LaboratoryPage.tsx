@@ -227,6 +227,7 @@ export const LaboratoryPage: React.FC = () => {
         step={currentStep}
         algorithmId={algorithmId}
         status={status}
+        speedMs={speedMs}
         computeTimeMs={computeTimeMs}
         animationElapsedMs={animationElapsedMs}
       />

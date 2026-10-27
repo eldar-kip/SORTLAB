@@ -8,6 +8,7 @@ interface BarChartVisualizerProps {
   step: SortingStep;
   algorithmId: AlgorithmId;
   status: PlaybackStatus;
+  speedMs?: number;
   computeTimeMs?: number;
   animationElapsedMs?: number;
   compact?: boolean;
@@ -18,11 +19,13 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
   step,
   algorithmId,
   status,
+  speedMs = 180,
   computeTimeMs = 0,
   animationElapsedMs = 0,
   compact = false,
   heightClass = 'h-[340px] sm:h-[390px]',
 }) => {
+  const barTransitionMs = Math.min(350, Math.max(20, Math.round(speedMs * 0.75)));
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [showIndices, setShowIndices] = useState<boolean>(true);
   const [showHeapTree, setShowHeapTree] = useState<boolean>(true);
@@ -459,8 +462,11 @@ export const BarChartVisualizer: React.FC<BarChartVisualizerProps> = ({
 
                 {/* Столбец */}
                 <div
-                  style={{ height: `${heightPct}%` }}
-                  className={`w-full rounded-t-md border-t border-x ${style.bg} ${style.border} ${style.glow} transition-[height] duration-75 ease-out group-hover:brightness-125`}
+                  style={{
+                    height: `${heightPct}%`,
+                    transitionDuration: `${barTransitionMs}ms`,
+                  }}
+                  className={`w-full rounded-t-md border-t border-x ${style.bg} ${style.border} ${style.glow} transition-[height,border-color,box-shadow] ease-in-out group-hover:brightness-125`}
                 />
 
                 {/* Числовое значение */}

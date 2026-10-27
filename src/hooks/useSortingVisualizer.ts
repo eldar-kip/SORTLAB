@@ -146,57 +146,100 @@ export function useSortingVisualizer(initialAlgorithmOverride?: AlgorithmId) {
     [algorithmId, initialArray, order, preset, computeTimeMs]
   );
 
-  // Основной цикл воспроизведения шагов с динамической скоростью и точным временем без лишних ререндеров
+  // Отслеживание реального времени работы анимации (performance.now()) во время воспроизведения
   useEffect(() => {
     if (status !== 'running') {
-      clearTimers();
+      if (animTimerRef.current !== null) {
+        window.clearInterval(animTimerRef.current);
+        animTimerRef.current = null;
+      }
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(0, performance.now() - runStartPerfRef.current);
+        runStartPerfRef.current = null;
+      }
       return;
     }
 
     runStartPerfRef.current = performance.now();
 
-    // Плавное обновление индикатора времени для медленных режимов (раз в 150 мс вместо 50 мс)
     animTimerRef.current = window.setInterval(() => {
       if (runStartPerfRef.current !== null) {
         const elapsed =
           accumulatedAnimMsRef.current + (performance.now() - runStartPerfRef.current);
         setAnimationElapsedMs(elapsed);
       }
-    }, 150);
-
-    const scheduleNext = () => {
-      timerRef.current = window.setTimeout(() => {
-        if (statusRef.current !== 'running') return;
-
-        if (runStartPerfRef.current !== null) {
-          const elapsed =
-            accumulatedAnimMsRef.current + (performance.now() - runStartPerfRef.current);
-          setAnimationElapsedMs(elapsed);
-        }
-
-        setCurrentStepIndex((prevIdx) => {
-          const nextIdx = prevIdx + 1;
-          if (nextIdx >= steps.length - 1) {
-            clearTimers();
-            setAnimationElapsedMs(accumulatedAnimMsRef.current);
-            setStatus('completed');
-            if (steps[steps.length - 1]) {
-              recordCompletedExperiment(steps[steps.length - 1], steps.length - 1);
-            }
-            return Math.max(0, steps.length - 1);
-          }
-          scheduleNext();
-          return nextIdx;
-        });
-      }, speedRef.current);
-    };
-
-    scheduleNext();
+    }, 100);
 
     return () => {
-      clearTimers();
+      if (animTimerRef.current !== null) {
+        window.clearInterval(animTimerRef.current);
+        animTimerRef.current = null;
+      }
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(0, performance.now() - runStartPerfRef.current);
+        runStartPerfRef.current = null;
+      }
     };
-  }, [status, steps, clearTimers, recordCompletedExperiment]);
+  }, [status]);
+
+  // Пошаговое воспроизведение алгоритма строго по одному шагу (0 -> 1 -> 2 -> ...) со скоростью speedMs
+  useEffect(() => {
+    if (status !== 'running') {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    if (currentStepIndex >= steps.length - 1) {
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(0, performance.now() - runStartPerfRef.current);
+        runStartPerfRef.current = null;
+      }
+      setAnimationElapsedMs(accumulatedAnimMsRef.current);
+      setStatus('completed');
+      if (steps[steps.length - 1]) {
+        recordCompletedExperiment(steps[steps.length - 1], steps.length - 1);
+      }
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (statusRef.current !== 'running') return;
+
+      if (runStartPerfRef.current !== null) {
+        const elapsed =
+          accumulatedAnimMsRef.current + (performance.now() - runStartPerfRef.current);
+        setAnimationElapsedMs(elapsed);
+      }
+
+      const nextIdx = currentStepIndex + 1;
+      if (nextIdx >= steps.length - 1) {
+        if (runStartPerfRef.current !== null) {
+          accumulatedAnimMsRef.current += Math.max(0, performance.now() - runStartPerfRef.current);
+          runStartPerfRef.current = null;
+        }
+        setAnimationElapsedMs(accumulatedAnimMsRef.current);
+        setCurrentStepIndex(steps.length - 1);
+        setStatus('completed');
+        if (steps[steps.length - 1]) {
+          recordCompletedExperiment(steps[steps.length - 1], steps.length - 1);
+        }
+      } else {
+        setCurrentStepIndex(nextIdx);
+      }
+    }, speedMs);
+
+    timerRef.current = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (timerRef.current === timeoutId) {
+        timerRef.current = null;
+      }
+    };
+  }, [status, currentStepIndex, speedMs, steps, recordCompletedExperiment]);
 
   // Действия управления
   const start = useCallback(() => {

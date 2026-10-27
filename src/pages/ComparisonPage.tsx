@@ -116,41 +116,89 @@ export const ComparisonPage: React.FC = () => {
     return Math.max(1, ...results.map((r) => r.steps.length - 1));
   }, [results]);
 
-  // Синхронное воспроизведение
+  // Отслеживание времени анимации при запущенном сравнении
   useEffect(() => {
     if (status !== 'running') {
-      clearTimer();
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(
+          0,
+          performance.now() - runStartPerfRef.current
+        );
+        runStartPerfRef.current = null;
+      }
       return;
     }
 
     runStartPerfRef.current = performance.now();
 
-    const scheduleTick = () => {
-      timerRef.current = window.setTimeout(() => {
-        if (statusRef.current !== 'running') return;
-        if (runStartPerfRef.current !== null) {
-          setElapsedAnimMs(
-            accumulatedAnimMsRef.current +
-              (performance.now() - runStartPerfRef.current)
-          );
-        }
-        setTickIndex((prev) => {
-          const next = prev + 1;
-          if (next >= maxTotalSteps) {
-            clearTimer();
-            setElapsedAnimMs(accumulatedAnimMsRef.current);
-            setStatus('completed');
-            return maxTotalSteps;
-          }
-          scheduleTick();
-          return next;
-        });
-      }, speedRef.current);
+    return () => {
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(
+          0,
+          performance.now() - runStartPerfRef.current
+        );
+        runStartPerfRef.current = null;
+      }
     };
+  }, [status]);
 
-    scheduleTick();
-    return () => clearTimer();
-  }, [status, maxTotalSteps, clearTimer]);
+  // Синхронное пошаговое воспроизведение строго по 1 шагу со скоростью speedMs
+  useEffect(() => {
+    if (status !== 'running') {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    if (tickIndex >= maxTotalSteps) {
+      if (runStartPerfRef.current !== null) {
+        accumulatedAnimMsRef.current += Math.max(
+          0,
+          performance.now() - runStartPerfRef.current
+        );
+        runStartPerfRef.current = null;
+      }
+      setElapsedAnimMs(accumulatedAnimMsRef.current);
+      setStatus('completed');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (statusRef.current !== 'running') return;
+      if (runStartPerfRef.current !== null) {
+        setElapsedAnimMs(
+          accumulatedAnimMsRef.current +
+            (performance.now() - runStartPerfRef.current)
+        );
+      }
+      const next = tickIndex + 1;
+      if (next >= maxTotalSteps) {
+        if (runStartPerfRef.current !== null) {
+          accumulatedAnimMsRef.current += Math.max(
+            0,
+            performance.now() - runStartPerfRef.current
+          );
+          runStartPerfRef.current = null;
+        }
+        setElapsedAnimMs(accumulatedAnimMsRef.current);
+        setTickIndex(maxTotalSteps);
+        setStatus('completed');
+      } else {
+        setTickIndex(next);
+      }
+    }, speedMs);
+
+    timerRef.current = timeoutId;
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (timerRef.current === timeoutId) {
+        timerRef.current = null;
+      }
+    };
+  }, [status, tickIndex, speedMs, maxTotalSteps]);
 
   const handleGenerateNewData = (newPreset: ArrayPresetType = preset, newSize: number = arraySize) => {
     clearTimer();
